@@ -40,7 +40,7 @@ if __name__ == "__main__":
         checkpoint = ModelCheckpoint(filepath='./model/MSD Cardiac/logs/fold%d_best_model.h5' % k, monitor='val_loss', mode='auto',
                                      save_best_only='True')
         history = model.fit(X_train[idxtr], Y_train[idxtr],  validation_data= (X_train[idxts],Y_train[idxts]),
-                                    batch_size=16, epochs=2, callbacks=[reduce_lr, checkpoint])
+                                    batch_size=16, epochs=200, callbacks=[reduce_lr, checkpoint])
         #model.save('./model/MSD Cardiac/fold%d.h5' % k)
         with open("./model/MSD Cardiac/logs/fold%d_log.txt" % k, "wb") as file:
             pickle.dump(history.history, file)

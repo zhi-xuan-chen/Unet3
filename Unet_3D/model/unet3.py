@@ -3,8 +3,7 @@ import keras
 from keras.engine import Input, Model
 from keras.layers import Conv3D, MaxPooling3D, UpSampling3D, Activation, BatchNormalization, Conv3DTranspose
 from keras.optimizers import Adam
-
-from utils.metrics import *
+from Unet_3D.utils.metrics import *
 
 K.set_image_data_format("channels_last")# (B, S, H, W, C)
 
@@ -16,7 +15,7 @@ except ImportError:
 
 def unet_model_3d(input_shape, pool_size=(2, 2, 2), n_labels=2, initial_learning_rate=0.001, deconvolution=True,
                   depth=4, n_base_filters=4, include_label_wise_dice_coefficients=True, metrics=dice_coefficient_all,
-                  batch_normalization=True):
+                  batch_normalization=True):    #activation_name
     """
     Builds the 3D UNet Keras model.f
     :param metrics: List metrics to be calculated during model training (default is dice coefficient).

@@ -8,81 +8,65 @@ from preprossing import convertgt2mask
 import scipy.misc
 import nibabel as nib
 
+# X_test_set and Y_test_set are all patch size
 
-def dice_test(X_test_set, Y_test_set, model): #此函数的输入维度，最后一个维度要求是C
-    data_shape = Y_test_set.shape
-    Y_pred_set = []
-    for i in X_test_set[1:2]:
-        Y_pred_set.append(np.squeeze(model.predict(np.expand_dims(i, axis=0), batch_size=1, verbose = 1), axis=0))
-    Y_pred_set = np.array(Y_pred_set)
-    dice_list = [] #存储不同label的dice
-    for i in range(data_shape[-1]):
-        dice_list.append(label_wise_dice_coefficient_test(Y_test_set[1:2], Y_pred_set, i))
-    dice_average = sum(dice_list) / len(dice_list)
-    # dice_all = dice_coefficient_all(Y_test_set, Y_pred_set, smooth=0.01)
+def dice_test(X_test_set, Y_test_set, origin_shape, model): #此函数的输入维度，最后一个维度要求是C
+    n, s, h, w, c = X_test_set.shape
+    N, S, H, W, C = origin_shape
+    num_patch = (S * H * W) / \
+                (s * h * w)  # number of patch in one origin sample
+    # X_test_set 应该包含所有的数据，但是可以慢慢丢入模型，防止溢出
+    Y_pred_set = np.zeros(Y_test_set.shape)
+    for i in range(N):
+        Y_pred_set[i*num_patch : i*num_patch+num_patch] = \
+            model.predict(X_test_set[i*num_patch : i*num_patch+num_patch], batch_size=2, verbose = 1)
 
-    return dice_list, dice_average #dice_all
+def model_results_display(X_test_set, origin_shape, model): #X_test_set is all patch
+    n, s, h, w, c = X_test_set.shape
+    N, S, H, W, C = origin_shape
+    num_patch = (S * H * W) / \
+                (s * h * w) # number of patch in one origin sample
 
-def model_average_dice_test(X_test_set, Y_test_set, num_model, model_path = './model/MSD Cardiac/logs'):
+    Y_pred_set = np.zeros(origin_shape)
+
+    for i in range(origin_shape[0]):
+        output_tmp = model.predict(X_test_set[i*num_patch : i*num_patch+num_patch], batch_size=2, verbose = 1)
+
+        for j in range(S // s):
+            for k in range(H // h):
+                for m in range(W // w):
+                    Y_pred_set[i, s * j: s + s * j,
+                                      h * k: h + h * k,
+                                      w * m: w + w * m, :] = output_tmp[j * (H//h) * (W//w) + k * (W//w) + m]
+
+    Y_pred_label = Y_pred_set.argmax(4) #存放输出原始大小的label标签图
+
+    return Y_pred_label
+
+
+def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './model/MSD Cardiac/logs'):
     dice_list = []
     dice_average = []
     # dice_all = []
+    k_max = 0
+    dice_max = 0
 
     for k in range(num_model):
         filepath = model_path + '/fold%d_best_model.h5' % k
         model = load_model(filepath, compile=False)
-        dice_list_tmp, dice_average_tmp = dice_test(X_test_set, Y_test_set, model)
+        dice_list_tmp, dice_average_tmp = dice_test(X_test_set, origin_shape, model)
+        if dice_average_tmp > dice_max:
+            k_max = k
+            dice_max = dice_average_tmp
         dice_list.append(dice_list_tmp)
         dice_average.append(dice_average_tmp)
 
-    return np.mean(dice_list, -1), np.mean(dice_average, -1)#, np.mean(dice_all, -1),
-
-def model_results_display(X_test_set, Y_test_set, patch_shape, num_model, result_path = './Unet_3D/results', model_path = './model/MSD Cardiac/logs'):
-    data_shape = X_test_set.shape
-    n = 0
-    Y_pred_set = [] #用来存放输出的label标签图
-
-    for i in range(2): #从测试数据集中遍历所有patch丢进模型中计算输出data_shape[0]
-        tmp = X_test_set[i]
-        for j in range(data_shape[1]//patch_shape[1]):
-            for k in range(data_shape[2]//patch_shape[2]):
-                for m in range(data_shape[3]//patch_shape[3]):
-                    patch_input = tmp[patch_shape[1] * j: patch_shape[1] + patch_shape[1] * j,
-                                      patch_shape[2] * k: patch_shape[2] + patch_shape[2] * k,
-                                      patch_shape[3] * m: patch_shape[3] + patch_shape[3] * m, :]
-                    patch_output = []
-                    #for k in range(num_model):
-                    filepath = model_path + '/fold0_best_model.h5'
-                    model = load_model(filepath, compile=False)
-                    output_tmp = np.squeeze(model.predict(np.expand_dims(patch_input, axis=0), batch_size=1, verbose=1), axis=0)
-                    patch_output.append(output_tmp)
-                    #patch_output = patch_output / num_model
-
-                    Y_pred_set.append(np.array(patch_output).argmax(4))
-                    n = n + 1
-
-    # Y_pred_set = convertgt2mask(Y_pred_set, n_labels)
-    # Y_test_set = convertgt2mask(Y_test_set, n_labels)
-
-    label_shape = Y_test_set.shape
-    num_channel = data_shape[-1]
-    num_label = label_shape[-1]
-    # for i in range(num_label):
-    #     gt_mask = np.expand_dims(Y_test_set[:,:,:,:,i],-1).repeat(num_channel,axis=-1)
-    #     pred_mask = np.expand_dims(Y_pred_set[:,:,:,:,i],-1).repeat(num_channel,axis=-1)
-    #     gt_result = X_test_set * gt_mask
-    #     pred_results = X_test_set * pred_mask
-    #
-    #     for n in range(data_shape[0]):  # 这里需要修改
-    #         gt_image = nib.Nifti1Image(gt_result[n], np.eye(4)) #S*H*W*C
-    #         gt_image.set_data_dtype(np.my_dtype)
-    #         nib.save(gt_image, result_path + './gt/lable_%d_gt_result_%d.nii.gz' % i % n)
-    #
-    #         pred_image = nib.Nifti1Image(pred_results[n], np.eye(4)) #S*H*W*C
-    #         pred_image.set_data_dtype(np.my_dtype)
-    #         nib.save(pred_image, result_path + './pred/lable_%d_pred_result_%d.nii.gz' % i % n)
-
-
+    best_filepath = model_path + '/fold%d_best_model.h5' % k_max
+    model = load_model(best_filepath, compile=False)
+    dice_list, dice_average = dice_test(X_test_set, Y_test_set, origin_shape, model)
+    Y_pred_label = model_results_display(X_test_set, Y_test_set, )
+    
+    return np.mean(dice_list, -1), np.mean(dice_average, -1), Y_pred_label#, np.mean(dice_all, -1),
 
 if __name__ == "__main__":
     kfold = 5
@@ -100,17 +84,14 @@ if __name__ == "__main__":
 
     X_test_set_patch = np.load('./data/MSD Cardiac/train_set_patch.npy')
     Y_test_set_patch = np.load('./data/MSD Cardiac/label_set_patch.npy')
-    dice_list, dice_average = model_average_dice_test(X_test_set_patch, Y_test_set_patch, 5)
+    dice_list, dice_average, Y_pred_label = \
+        model_test(X_test_set_patch, Y_test_set_patch, (20,128,320,320,1), 5, model_path='./model/MSD Cardiac/logs')
+
     print('dice_list is:' + str(dice_list))
     print('dice_average is:' + str(dice_average))
-    # print('dice_all is:' + str(dice_all))
+    print('test')
 
-    X_test_set = np.load('./data/MSD Cardiac/train_set.npy')
-    Y_test_set = np.load('./data/MSD Cardiac/label_set.npy')
-    X_test_set = X_test_set[:, 0:128, :, :, :]# crop
-    Y_test_set = Y_test_set[:, 0:128, :, :, :]
 
-    model_results_display(X_test_set, Y_test_set, (1280, 32, 80, 80, 1), num_model = 5)
 
 
 

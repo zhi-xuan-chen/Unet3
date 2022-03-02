@@ -7,6 +7,12 @@ import numpy as np
 import os
 import pickle
 
+n_labels = 2  # Class number
+lr = 0.001
+depth = 5
+n_base_filters = 4  # Channel number at level0
+k = 0
+
 def scheduler(epoch):
     # 每隔100个epoch，学习率减小为原来的1/10
     if epoch % 100 == 0 and epoch != 0:
@@ -25,11 +31,6 @@ if __name__ == "__main__":
     X_train = np.load('./data/MSD Cardiac/train_set_patch.npy')  # patched dataset
     Y_train = np.load('./data/MSD Cardiac/label_set_patch.npy')
     kf = KFold(n_splits=5, shuffle=True, random_state=1000)
-    n_labels = 2  # Class number
-    lr = 0.001
-    depth = 5
-    n_base_filters = 4  # Channel number at level0
-    k = 0
 
     for idxtr, idxts in kf.split(X_train, Y_train):
         model = unet3.unet_model_3d(input_shape=(32, 80, 80, 1), n_labels=n_labels, initial_learning_rate=lr,
@@ -40,7 +41,7 @@ if __name__ == "__main__":
         checkpoint = ModelCheckpoint(filepath='./model/MSD Cardiac/logs/fold%d_best_model.h5' % k, monitor='val_loss', mode='auto',
                                      save_best_only='True')
         history = model.fit(X_train[idxtr], Y_train[idxtr],  validation_data= (X_train[idxts],Y_train[idxts]),
-                                    batch_size=16, epochs=200, callbacks=[reduce_lr, checkpoint])
+                                    batch_size=16, epochs=1, callbacks=[reduce_lr, checkpoint])
         #model.save('./model/MSD Cardiac/fold%d.h5' % k)
         with open("./model/MSD Cardiac/logs/fold%d_log.txt" % k, "wb") as file:
             pickle.dump(history.history, file)

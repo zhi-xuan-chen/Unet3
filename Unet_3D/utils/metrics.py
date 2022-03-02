@@ -1,5 +1,5 @@
 from functools import partial
-
+import numpy as np
 from keras import backend as K
 
 
@@ -9,6 +9,11 @@ def dice_coefficient_all(y_true, y_pred, smooth=1.):
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection+smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
+def dice_coefficient_all_test(y_true, y_pred, smooth=1.):
+    y_true_f = y_true.flatten()
+    y_pred_f = y_pred.flatten()
+    intersection = (y_true_f * y_pred_f).sum()
+    return (2. * intersection+smooth) / (y_true_f.sum() + y_pred_f.sum() + smooth)
 
 def dice_coefficient_loss(y_true, y_pred):# return average dice loss instead of all
     sum = 0
@@ -41,6 +46,8 @@ def weighted_dice_coefficient_loss(y_true, y_pred):
 def label_wise_dice_coefficient(y_true, y_pred, label_index):
     return dice_coefficient_all(y_true[:, :, :, :, label_index], y_pred[:, :, :, :, label_index])
 
+def label_wise_dice_coefficient_test(y_true, y_pred, label_index):
+    return dice_coefficient_all_test(y_true[:, :, :, :, label_index], y_pred[:, :, :, :, label_index])
 
 def get_label_dice_coefficient_function(label_index):
     f = partial(label_wise_dice_coefficient, label_index=label_index)

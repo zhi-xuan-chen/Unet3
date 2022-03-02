@@ -21,7 +21,6 @@ def dice_test(X_test_set, Y_test_set, origin_shape, model): #此函数的输入�
         Y_pred_set[i*num_patch : i*num_patch+num_patch] = \
             model.predict(X_test_set[i*num_patch : i*num_patch+num_patch], batch_size=2, verbose = 1)
 
-
 def model_results_display(X_test_set, origin_shape, model): #X_test_set is all patch
     n, s, h, w, c = X_test_set.shape
     N, S, H, W, C = origin_shape
@@ -49,7 +48,6 @@ def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './
     dice_list = []
     dice_average = []
     # dice_all = []
-
     k_max = 0
     dice_max = 0
 
@@ -67,26 +65,25 @@ def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './
     model = load_model(best_filepath, compile=False)
     dice_list, dice_average = dice_test(X_test_set, Y_test_set, origin_shape, model)
     Y_pred_label = model_results_display(X_test_set, Y_test_set, )
-
+    
     return np.mean(dice_list, -1), np.mean(dice_average, -1), Y_pred_label#, np.mean(dice_all, -1),
 
 if __name__ == "__main__":
     kfold = 5
-    for k in range(kfold):
-        with open("./model/MSD Cardiac/logs/fold%d_log.txt" % k, "rb") as file:
-            history = pickle.load(file)
-        plt.plot(history['loss'])
-        plt.plot(history['val_loss'])
-        plt.title("fold%d model loss pic" % k)
-        plt.ylabel("avg dice loss")
-        plt.xlabel("epoch")
-        plt.legend(["train", "test"],loc="lower right")
-        plt.savefig("./model/MSD Cardiac/logs/fold%d loss pic.jpg" % k)
-        plt.show()
+    # for k in range(kfold):
+    #     with open("./model/MSD Cardiac/logs/fold%d_log.txt" % k, "rb") as file:
+    #         history = pickle.load(file)
+    #     plt.plot(history['loss'])
+    #     plt.plot(history['val_loss'])
+    #     plt.title("fold%d model loss pic" % k)
+    #     plt.ylabel("avg dice loss")
+    #     plt.xlabel("epoch")
+    #     plt.legend(["train", "test"],loc="lower right")
+    #     plt.savefig("./model/MSD Cardiac/logs/fold%d loss pic.jpg" % k)
+    #     plt.show()
 
     X_test_set_patch = np.load('./data/MSD Cardiac/train_set_patch.npy')
     Y_test_set_patch = np.load('./data/MSD Cardiac/label_set_patch.npy')
-
     dice_list, dice_average, Y_pred_label = \
         model_test(X_test_set_patch, Y_test_set_patch, (20,128,320,320,1), 5, model_path='./model/MSD Cardiac/logs')
 

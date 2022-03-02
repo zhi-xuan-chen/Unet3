@@ -14,26 +14,35 @@ import nibabel as nib
 def dice_test(X_test_set, Y_test_set, origin_shape, model): #此函数的输入维度，最后一个维度要求是C
     n, s, h, w, c = X_test_set.shape
     N, S, H, W, C = origin_shape
-    num_patch = (S * H * W) / \
-                (s * h * w)  # number of patch in one origin sample
+    dice_list = []
+    dice_average = 0
+    num_patch = int((S * H * W) / \
+                (s * h * w))  # number of patch in one origin sample
     # X_test_set 应该包含所有的数据，但是可以慢慢丢入模型，防止溢出
     Y_pred_set = np.zeros(Y_test_set.shape)
-    for i in range(N):
-        Y_pred_set[i*num_patch : i*num_patch+num_patch] = \
-            model.predict(X_test_set[i*num_patch : i*num_patch+num_patch], batch_size=2, verbose = 1)
+
+    for i in range(n//num_patch):
+        print('Testing patch%d/%d' % (i+1, n//num_patch))
+        Y_pred_set[i*num_patch : i*num_patch+num_patch] = model.predict(X_test_set[i*num_patch : i*num_patch+num_patch],
+                                                                        batch_size=4, verbose = 1)
+    for i in range(n_labels):
+        dice_list.append(label_wise_dice_coefficient_test(Y_test_set, Y_pred_set, i))
+    dice_average = np.mean(dice_list)
+    return dice_list, dice_average
 
 
 def model_results_display(X_test_set, origin_shape, model): #X_test_set is all patch
     n, s, h, w, c = X_test_set.shape
     N, S, H, W, C = origin_shape
-    num_patch = (S * H * W) / \
-                (s * h * w) # number of patch in one origin sample
+    pred_shape = (N, S, H, W, n_labels)
+    num_patch = int((S * H * W) / \
+                (s * h * w)) # number of patch in one origin sample
 
-    Y_pred_set = np.zeros(origin_shape)
+    Y_pred_set = np.zeros(pred_shape)
 
-    for i in range(origin_shape[0]):
+    for i in range(N):
+        print('Calculating pred pics %d/%d' % (i + 1, N))
         output_tmp = model.predict(X_test_set[i*num_patch : i*num_patch+num_patch], batch_size=2, verbose = 1)
-
         for j in range(S // s):
             for k in range(H // h):
                 for m in range(W // w):
@@ -57,7 +66,10 @@ def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './
     for k in range(num_model):
         filepath = model_path + '/fold%d_best_model.h5' % k
         model = load_model(filepath, compile=False)
-        dice_list_tmp, dice_average_tmp = dice_test(X_test_set, origin_shape, model)
+
+        print('Testing model%d' % k)
+        dice_list_tmp, dice_average_tmp = dice_test(X_test_set, Y_test_set, origin_shape=origin_shape, model=model)
+
         if dice_average_tmp > dice_max:
             k_max = k
             dice_max = dice_average_tmp
@@ -65,11 +77,13 @@ def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './
         dice_average.append(dice_average_tmp)
 
     best_filepath = model_path + '/fold%d_best_model.h5' % k_max
-    model = load_model(best_filepath, compile=False)
-    dice_list, dice_average = dice_test(X_test_set, Y_test_set, origin_shape, model)
-    Y_pred_label = model_results_display(X_test_set, Y_test_set, )
 
-    return np.mean(dice_list, -1), np.mean(dice_average, -1), Y_pred_label#, np.mean(dice_all, -1),
+    bestmodel = load_model(best_filepath, compile=False)
+    Y_pred_label = model_results_display(X_test_set, origin_shape=(20, 128, 320, 320, 1),
+                                         model = bestmodel)
+    
+    return dice_list, dice_average, Y_pred_label, k_max
+
 
 if __name__ == "__main__":
     kfold = 5
@@ -88,12 +102,15 @@ if __name__ == "__main__":
     X_test_set_patch = np.load('./data/MSD Cardiac/train_set_patch.npy')
     Y_test_set_patch = np.load('./data/MSD Cardiac/label_set_patch.npy')
 
-    dice_list, dice_average, Y_pred_label = \
-        model_test(X_test_set_patch, Y_test_set_patch, (20,128,320,320,1), 5, model_path='./model/MSD Cardiac/logs')
-
-    print('dice_list is:' + str(dice_list))
-    print('dice_average is:' + str(dice_average))
-    print('test')
+    print('testing')
+    dice_list, dice_average, Y_pred_label, k_max = model_test(X_test_set_patch, Y_test_set_patch,
+                                                       origin_shape=(20, 128, 320, 320, 1),
+                                                       num_model=5, model_path='./model/MSD Cardiac/logs')
+    np.save('./model/MSD Cardiac/finallabel.npy', Y_pred_label)
+    print('All dice_lists are:' + str(dice_list))
+    print('All dice_averages are:' + str(dice_average))
+    print('Best model is: %d' % k_max)
+    print('Best dice_list&dice_average:' + str(dice_list[k_max]) + str(dice_average[k_max]))
 
 
 

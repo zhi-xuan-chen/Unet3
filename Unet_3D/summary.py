@@ -92,6 +92,7 @@ if __name__ == "__main__":
 
     print('dice_list is:' + str(dice_list))
     print('dice_average is:' + str(dice_average))
+    print('test')
 
 
 

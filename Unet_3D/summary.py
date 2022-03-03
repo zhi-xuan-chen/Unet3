@@ -84,6 +84,16 @@ def model_test(X_test_set, Y_test_set, origin_shape, num_model, model_path = './
     
     return dice_list, dice_average, Y_pred_label, k_max
 
+def label_display(label_array, slice_index): #此函数传进一个分割样本label_array，指定显示第slice_index切片的分割图
+    plt.style.use('_mpl-gallery-nogrid')
+    S, H, W, C = label_array.shape
+    x, y = np.meshgrid(list(range(W)), list(range(H)))
+    z = label_array[slice_index, x, y, :]
+    fig, ax = plt.subplots()
+
+    ax.imshow(z)
+    plt.show()
+
 
 if __name__ == "__main__":
     kfold = 5
